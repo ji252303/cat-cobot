@@ -1,0 +1,134 @@
+#include <LiquidCrystal_I2C_Hangul.h>
+#include <DFPlayer_Mini_Mp3.h>
+// C++ code
+// 초음파 lcd rtc 푸쉬버튼 블루투스 온습도
+#include <SoftwareSerial.h>
+#include <dht11.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C_Hangul.h>
+#include <DS1302.h>
+#define DHT11PIN 2
+#define trigPin 13
+#define echoPin 12
+#define CLK 11
+#define DAT 10
+#define RST 9
+
+
+dht11 DHT11;
+
+DS1302 rtc(RST, DAT, CLK);
+
+LiquidCrystal_I2C_Hangul lcd(0x27,16,2);
+
+int push_button = 4;
+int bluetoothTx = 7;
+int bluetoothRx = 8;
+int receiveData;
+
+SoftwareSerial bluetooth(bluetoothTx,bluetoothRx);
+SoftwareSerial mySerial(5,6); //mp3 rx,tx
+
+void setup()
+{
+  Serial.begin(9600);
+  mySerial.begin(9600);
+  mp3_set_serial(mySerial);
+  delay(1);
+  mp3_set_volume(10);  //mp3 볼륨
+  bluetooth.begin(9600);
+  pinMode(push_button, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0,0);
+  rtc.halt(false);
+  rtc.writeProtect(false);
+  rtc.setDOW();
+  rtc.setTime();
+  rtc.setDate();
+}
+
+long microsecondsToInches(long microseconds)
+{
+  return microseconds / 74/ 2;
+}
+long microsecondsToCentimeters(long microseconds)
+{
+  return microseconds / 29/ 2;
+}
+
+
+void loop()
+{
+  Serial.print("1"); //엘이디통신
+  boolean play_state = digitalRead(3); //MP3플레이어 불린연결
+  int chk = DHT11.read(DHT11PIN); //온도 읽기 설정
+  long duration, inches, cm; //초음파 설정
+  int rand = random(3,5); //난수생성
+  
+  
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin,LOW);
+  duration = pulseIn(echoPin, HIGH);
+  
+  inches = microsecondsToInches(duration);
+  cm = microsecondsToCentimeters(duration); //초음파 설정
+  
+  lcd.setCursor(4,0);
+  lcd.print("TIME : ");
+  lcd.print(rtc.getTimeStr()); //rtc 상시출력
+
+
+ if(cm < 3){
+    mp3_play(1);
+  }    // 초음파에 따라 쓰다듬으면 야옹소리 출력!
+  if(bluetooth.available()>0){
+    receiveData = bluetooth.read();
+  if(receiveData==3){    
+      lcd.setCursor(0,0);
+      lcd.clear();
+      lcd.print("LUCKY CAT!");
+      mp3_play(3);
+      delay(3000);  
+      lcd.clear();
+  } 
+  if(receiveData==4){
+      lcd.setCursor(0,0);
+      lcd.clear();
+      lcd.print("SO SO");
+      mp3_play(4);
+      delay(3000);   
+      lcd.clear();
+  }
+  if(receiveData==5){
+      lcd.setCursor(0,0);
+      lcd.clear();
+      lcd.print("TOO BAD");
+      mp3_play(2);
+      delay(3000);
+      lcd.clear();
+    }
+  }                       //블루투스앱으로 운세와 소리출력
+ 
+ 
+ if(digitalRead(push_button) == HIGH)   //푸쉬버튼으로 lcd에 온습도 표현
+  {
+    lcd.setCursor(0,0);
+    lcd.clear();
+    lcd.print("HUMI : ");
+    lcd.println((float)DHT11.humidity, 2);
+    lcd.setCursor(0,1);
+    lcd.print("TEMP : ");
+    lcd.println((float)DHT11.temperature, 2);
+    delay(2000); 
+  } else if(digitalRead(push_button) == LOW) {
+     lcd.setCursor(0,0);
+     lcd.print(rtc.getTimeStr());
+     lcd.clear();
+  }
+}
